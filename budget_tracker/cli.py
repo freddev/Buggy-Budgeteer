@@ -28,7 +28,12 @@ class BudgetCLI:
         print(f"Loaded {len(self.expenses)} expenses from {self.data_path}")
         self.running = True
         while self.running:
-            raw = input(self.prompt)
+            try:
+                raw = input(self.prompt)
+            except (EOFError, KeyboardInterrupt):
+                print()
+                self.do_exit("")
+                break
             if not raw:
                 self.do_list("")
                 continue
@@ -45,14 +50,18 @@ class BudgetCLI:
 
     def do_help(self, _argument: str) -> None:
         print("Available commands:")
-        print(", ".join(self.command_map.values()))
+        for cmd, desc in sorted(self.command_map.items()):
+            print(f"  {cmd:8} - {desc}")
 
     def do_list(self, _argument: str) -> None:
         if not self.expenses:
             print("No expenses recorded.")
             return
         for idx, expense in enumerate(sorted(self.expenses, key=lambda exp: exp.timestamp), start=1):
-            print(f"{idx:2}. {expense.timestamp.date()} | {expense.desc} | ${expense.amount:.2f} ({expense.category})")
+            # use description attribute and format timestamp safely
+            ts = getattr(expense, "timestamp", None)
+            date_str = ts.date() if ts is not None else "unknown"
+            print(f"{idx:2}. {date_str} | {expense.description} | ${expense.amount:.2f} ({expense.category})")
 
     def do_add(self, argument: str) -> None:
         if not argument:
@@ -66,7 +75,8 @@ class BudgetCLI:
 
         description, amount_raw, category = parts[:3]
         try:
-            amount = abs(int(amount_raw))
+            # support decimal amounts
+            amount = abs(float(amount_raw))
         except ValueError:
             print("Amount must be numeric.")
             return
