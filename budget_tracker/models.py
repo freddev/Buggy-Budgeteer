@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List
 
 
@@ -10,13 +10,15 @@ class Expense:
     description: str
     amount: float
     category: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    # use timezone-aware UTC timestamps
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "description": self.description,
             "amount": float(self.amount),
             "category": self.category,
+            # ensure ISO format includes timezone info
             "timestamp": self.timestamp.isoformat(),
         }
 
@@ -24,12 +26,16 @@ class Expense:
     def from_dict(cls, data: Dict[str, Any]) -> "Expense":
         raw_timestamp = data.get("timestamp")
         if not raw_timestamp:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
         else:
             try:
                 timestamp = datetime.fromisoformat(raw_timestamp)
+                # if parsed timestamp is naive, assume UTC
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=timezone.utc)
             except ValueError:
-                timestamp = datetime.utcfromtimestamp(int(raw_timestamp))
+                # try integer epoch
+                timestamp = datetime.fromtimestamp(int(raw_timestamp), tz=timezone.utc)
 
         amount = float(data.get("ammount", data.get("amount", 0.0)))
         category = data.get("category", "misc")
